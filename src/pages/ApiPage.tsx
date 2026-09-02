@@ -35,6 +35,7 @@ export default function ApiPage() {
   const { logout, user } = useAuth();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [storage, setStorage] = useState<any>(null);
 
   const [newKeyName, setNewKeyName] = useState("");
   const [newKeyPassword, setNewKeyPassword] = useState("");
@@ -62,10 +63,14 @@ export default function ApiPage() {
     keyLabel: string | null;
   }>({ isOpen: false, keyId: null, keyLabel: null });
 
+  const [clearStorageInput, setClearStorageInput] = useState("");
+  const [isClearStorageModalOpen, setIsClearStorageModalOpen] = useState(false);
+
   useEffect(() => {
     fetchProfile();
     fetchKeys();
     fetchProducts();
+    fetchStorage();
   }, []);
 
   const fetchProducts = async () => {
@@ -88,6 +93,15 @@ export default function ApiPage() {
     try {
       const res = await api.get('/api/users/me');
       if (res.ok) setProfile(await res.json());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchStorage = async () => {
+    try {
+      const res = await api.get('/api/users/me/storage');
+      if (res.ok) setStorage(await res.json());
     } catch (e) {
       console.error(e);
     }
@@ -230,6 +244,20 @@ export default function ApiPage() {
     setModalError("");
   };
 
+  const handleClearStorage = async () => {
+    if (clearStorageInput !== "CLEAR") return;
+    try {
+      const res = await api.delete('/api/users/me/storage/clear');
+      if (res.ok) {
+        setIsClearStorageModalOpen(false);
+        setClearStorageInput("");
+        fetchStorage();
+      }
+    } catch (e) {
+      console.error("Failed to clear storage");
+    }
+  };
+
   const calculatePercentage = (used: number, limit: number) => {
     if (!limit) return 0;
     return Math.min(100, Math.round((used / limit) * 100));
@@ -298,6 +326,66 @@ export default function ApiPage() {
                   Send Email
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Clear Storage Modal */}
+      <AnimatePresence>
+        {isClearStorageModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 bg-background/80"
+              onClick={() => {
+                setIsClearStorageModalOpen(false);
+                setClearStorageInput("");
+              }}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="bg-paper border border-line-soft rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-xl relative z-10 will-change-transform"
+            >
+              <button onClick={() => setIsClearStorageModalOpen(false)} className="absolute top-4 right-4 text-carbon/40 hover:text-carbon transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="mb-6 text-center mt-2">
+              <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-xl font-display font-bold text-carbon mb-2 capitalize">
+                Clear Storage?
+              </h3>
+              <p className="text-sm text-carbon/60">
+                This action is permanent and will delete all your uploaded files across all products. Type <strong className="text-red-500">CLEAR</strong> to confirm.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <input
+                  type="text"
+                  value={clearStorageInput}
+                  onChange={(e) => setClearStorageInput(e.target.value)}
+                  placeholder="CLEAR"
+                  className="w-full bg-background border border-line-soft text-carbon text-center text-lg px-4 py-3 rounded-xl focus:outline-none focus:border-red-500 transition-colors uppercase"
+                />
+              </div>
+              <button
+                onClick={handleClearStorage}
+                disabled={clearStorageInput !== "CLEAR"}
+                className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold transition-all hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Clear Everything
+              </button>
+            </div>
             </motion.div>
           </div>
         )}
@@ -684,6 +772,31 @@ export default function ApiPage() {
                       </div>
                       <div className="h-2 w-full bg-background border border-line-soft rounded-full overflow-hidden">
                         <div className="h-full bg-ink/70 rounded-full transition-all duration-1000 ease-out delay-300" style={{ width: `${calculatePercentage(profile?.metrics?.weeklyRequests || 0, profile?.metrics?.weeklyLimit || 35000)}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Storage Usage */}
+                  <div className="space-y-6 mt-8 pt-8 border-t border-line-soft">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Shield className="h-4 w-4 text-carbon/50" />
+                      <h4 className="text-[11px] font-semibold text-carbon/50 uppercase tracking-widest">Storage Metrics</h4>
+                    </div>
+                    
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-end">
+                        <span className="text-sm font-medium text-carbon">Storage Usage</span>
+                        <span className="text-[11px] font-mono text-carbon/60">
+                          {storage ? `${(storage.usedBytes / 1073741824).toFixed(2)} GB` : "0 GB"} 
+                          <span className="text-carbon/30"> / {storage ? `${(storage.quotaBytes / 1073741824).toFixed(0)} GB` : "5 GB"}</span>
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-background border border-line-soft rounded-full overflow-hidden">
+                        <div className="h-full bg-ink rounded-full transition-all duration-1000 ease-out" style={{ width: `${storage?.usagePercentage || 0}%` }}></div>
+                      </div>
+                      <div className="flex justify-between items-center pt-2">
+                        <span className="text-xs text-carbon/50">{storage ? `${(storage.availableBytes / 1073741824).toFixed(2)} GB available` : "5 GB available"}</span>
+                        <button onClick={() => setIsClearStorageModalOpen(true)} className="text-xs text-red-500 hover:text-red-600 font-semibold transition-colors">Clear Storage</button>
                       </div>
                     </div>
                   </div>
